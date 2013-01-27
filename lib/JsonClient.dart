@@ -1,13 +1,14 @@
-#library("JsonClient");
+library JsonClient;
 
-#import("dart:uri");
-#import("dart:io");
-#import("dart:json");
+import "dart:uri";
+import "dart:io";
+import "dart:json" as JSON;
+import "dart:async";
 
 typedef void RequestFilter(HttpClientRequest httpReq);
 typedef void ResponseFilter(HttpClientResponse httpRes);
 
-interface LogLevel {
+abstract class LogLevel {
   static final int None = 0;
   static final int Error = 1;
   static final int Warn = 2;
@@ -23,7 +24,7 @@ class JsonClient {
   Function onError;
   int logLevel;
 
-  JsonClient(String urlRoot, [this.requestFilter, this.responseFilter])
+  JsonClient(String urlRoot, {this.requestFilter, this.responseFilter})
   {
     baseUri = new Uri.fromString(urlRoot);
     logLevel = LogLevel.Warn;
@@ -43,23 +44,27 @@ class JsonClient {
     if (logLevel >= LogLevel.Error) print(arg);
   }
 
-  Future noSuchMethod(name, args) {
+  noSuchMethod(InvocationMirror mirror) {
 
     var reqData;
     Function successFn, errorFn;
+    var args = mirror.positionalArguments;
+    var name = mirror.memberName;
 
     if (args.length > 0) {
       reqData = args[0] is! Function ? args[0] : null;
       successFn = reqData == null && args[0] is Function ? args[0] : null;
 
       if (args.length > 1) {
-        if (successFn == null)
+        if (successFn == null) {
           successFn = args[1];
-        else
+        } else {
           errorFn = args[1];
+        }
 
-        if (args.length > 2)
+        if (args.length > 2) {
           errorFn = args[2];
+        }
       }
     }
 
@@ -72,8 +77,8 @@ class JsonClient {
         url = "$url$reqData";
       }
       else {
-        url = "$url/$reqData";        
-      }        
+        url = "$url/$reqData";
+      }
     }
 
     String httpMethod = postData == null ? 'GET' : 'POST';
@@ -96,20 +101,23 @@ class JsonClient {
   void _notifyError (Completer task, e, [String msg, Function errorFn]) {
     HttpClientResponse httpRes = e is HttpClientResponse ? e : null;
     HttpException httpEx = e is HttpException ? e : null;
-    if (httpRes != null)
+    if (httpRes != null) {
       logInfo("HttpResponse(${httpRes.statusCode}): ${httpRes.reasonPhrase}. msg:$msg");
-    else if (httpEx != null)
+    } else if (httpEx != null) {
       logError("HttpException($msg): ${httpEx.message}");
-    else
+    } else {
       logError("_notifyError($msg): ${e.toString()}");
+    }
 
-    if (errorFn != null)
+    if (errorFn != null) {
       errorFn(e);
-    if (onError != null)
+    }
+    if (onError != null) {
       onError(e);
+    }
 
     try {
-      task.completeException(e);
+      task.completeError(e);
     } catch (ex){
       logError("Error on task.completeException(e): $ex. Return true in ExHandler to mark as handled");
     }
@@ -201,7 +209,7 @@ class JsonClient {
         } catch(e){ _notifyError(task, e, " on shutdown()", errorFn); return; }
 
         Object response = null;
-        if (buffer != null && !buffer.isEmpty()) {
+        if (buffer != null && !buffer.isEmpty) {
           String data = buffer.toString();
           try {
             logDebug("RECV onData: $data");
